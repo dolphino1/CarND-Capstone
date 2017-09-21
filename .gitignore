@@ -4,3 +4,9 @@ build
 devel
 
 profile.tmp
+
+
+ros/src/tl_detector/light_classification/models/bosch/*
+ros/src/tl_detector/light_classification/models/sim/*
+ros/src/tl_detector/light_classification/models/real/*
+ros/src/tl_detector/traffic_lights/

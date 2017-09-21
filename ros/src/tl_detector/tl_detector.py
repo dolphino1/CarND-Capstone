@@ -191,7 +191,10 @@ class TLDetector(object):
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
+	if self.light_classifier.processing:
+	    return False
+
+        return self.light_classifier.get_classification(cv_image, log_results=True, vis=True)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -225,18 +228,19 @@ class TLDetector(object):
         folder_map = {0: "red", 1: "yellow", 2: "green", 4: "unknown"}
         if light:
             state = self.get_light_state(min_light)
-            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-            folder = folder_map[min_light.state]
-            filename = "./traffic_lights/" + folder + "/image_" + str(self.count) + ".png"
-            self.count += 1
-            cv2.imwrite(filename, cv_image)
+            # cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            # # folder = folder_map[min_light.state]
+            # folder = "real"
+            # filename = "./traffic_lights/" + folder + "/image_" + str(self.count) + ".png"
+            # self.count += 1
+            # cv2.imwrite(filename, cv_image)
             return min_light_waypoint, state
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-        filename = "./traffic_lights/none/image_" + str(self.count) + ".png"
-        cv2.imwrite(filename, cv_image)
+        # cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        # filename = "./traffic_lights/none/image_" + str(self.count) + ".png"
+        # cv2.imwrite(filename, cv_image)
 
-        self.count += 1
+        # self.count += 1
         return -1, TrafficLight.UNKNOWN
 
 

@@ -23,4 +23,7 @@
 
     <!--Camera Info Publisher -->
     <include file="$(find camera_info_publisher)/launch/camera_info_publisher.launch"/>
+
+    <param name="tl_classifier_model_path" value="$(find tl_detector)/light_classification/models/real/optimized_inference_graph.pb" />
+
 </launch>
