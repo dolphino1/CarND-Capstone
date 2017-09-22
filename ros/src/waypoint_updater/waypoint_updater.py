@@ -21,7 +21,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 20 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 50 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -70,6 +70,24 @@ class WaypointUpdater(object):
 
             lane_msg = Lane()
             lane_msg.waypoints = lane_waypoints
+
+            # rospy.logdebug(
+            #     "CAR CURRENT pos: (%f, %f, %f), orient: (%f, %f, %f, %f)",
+            #     self.current_pose.pose.position.x, self.current_pose.pose.position.y, self.current_pose.pose.position.z,
+            #     self.current_pose.pose.orientation.x, self.current_pose.pose.orientation.y,
+            #     self.current_pose.pose.orientation.z, self.current_pose.pose.orientation.w)
+            #
+            # rospy.logdebug("Lane Waypoints:")
+            # count = 0
+            # for wp in lane_waypoints:
+            #     rospy.logdebug("%d) pos: (%f, %f, %f), orient: (%f, %f, %f, %f), linear: (%f, %f, %f), angular: (%f, %f, %f)",
+            #                    count, wp.pose.pose.position.x, wp.pose.pose.position.y, wp.pose.pose.position.z,
+            #                    wp.pose.pose.orientation.x, wp.pose.pose.orientation.y, wp.pose.pose.orientation.z,
+            #                    wp.pose.pose.orientation.w,
+            #                    wp.twist.twist.linear.x, wp.twist.twist.linear.y, wp.twist.twist.linear.z,
+            #                    wp.twist.twist.angular.x, wp.twist.twist.angular.y, wp.twist.twist.angular.z)
+            #     count += 1
+
 
             self.final_waypoints_pub.publish(lane_msg)
 
