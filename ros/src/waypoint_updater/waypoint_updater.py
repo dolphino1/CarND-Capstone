@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
 
 import math
@@ -21,32 +21,89 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 20 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
     def __init__(self):
-        rospy.init_node('waypoint_updater')
+        rospy.init_node('waypoint_updater', log_level=rospy.DEBUG)
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
+        #rospy.Subscriber('/traffic_waypoint', int, self.traffic_cb)
+        #rospy.Subscriber('/obstacle_waypoint', int, self.obstacle_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
+        self.base_waypoints = None
+        self.current_velocity = None
+        self.current_pose = None
 
-        rospy.spin()
+        self.loop()
+
+    def loop(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if ( (self.base_waypoints is None) or (self.current_velocity is None) or (self.current_pose is None)):
+                continue
+
+            pos = self.current_pose.pose.position
+
+            dl = lambda a, b: (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2
+            min_distance = None
+            lower_bound = 0
+            i = 0
+            for bp in self.base_waypoints.waypoints:
+                bpos = bp.pose.pose.position
+                if bpos.x > pos.x:
+                    distance = dl(pos, bpos)
+                    if (min_distance == None or distance < min_distance):
+                        min_distance = distance
+                        lower_bound = i
+                i += 1
+
+            upper_bound = min(len(self.base_waypoints.waypoints), lower_bound + LOOKAHEAD_WPS)
+            lane_waypoints = self.base_waypoints.waypoints[lower_bound:upper_bound]
+
+            lane_msg = Lane()
+            lane_msg.waypoints = lane_waypoints
+
+            rospy.logdebug("pose: (%f, %f, %f) --> publishing /final_waypoints (%f,%f,%f)",
+                           pos.x, pos.y, pos.z,
+                           lane_waypoints[0].pose.pose.position.x,
+                           lane_waypoints[0].pose.pose.position.y,
+                           lane_waypoints[0].pose.pose.position.z)
+            self.final_waypoints_pub.publish(lane_msg)
+
+            rate.sleep()
+
+            # rospy.logdebug(
+            #     "CAR CURRENT pos: (%f, %f, %f), orient: (%f, %f, %f, %f)",
+            #     msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
+            #     msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w)
+
+            # rospy.logdebug("Lane Waypoints:")
+            # count = 0
+            # for wp in lane_waypoints:
+            #     rospy.logdebug("%d) pos: (%f, %f, %f), orient: (%f, %f, %f, %f), linear: (%f, %f, %f), angular: (%f, %f, %f)",
+            #                    count, wp.pose.pose.position.x, wp.pose.pose.position.y, wp.pose.pose.position.z,
+            #                    wp.pose.pose.orientation.x, wp.pose.pose.orientation.y, wp.pose.pose.orientation.z,
+            #                    wp.pose.pose.orientation.w,
+            #                    wp.twist.twist.linear.x, wp.twist.twist.linear.y, wp.twist.twist.linear.z,
+            #                    wp.twist.twist.angular.x, wp.twist.twist.angular.y, wp.twist.twist.angular.z)
+            #     count += 1
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        self.current_pose = msg
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+    def waypoints_cb(self, lane):
+        self.base_waypoints = lane
+
+    def velocity_cb(self, velocity):
+        self.current_velocity = velocity
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
