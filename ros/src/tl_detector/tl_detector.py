@@ -7,6 +7,7 @@ from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
+import os
 import tf
 import cv2
 import yaml
@@ -15,7 +16,7 @@ STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
     def __init__(self):
-        rospy.init_node('tl_detector')
+        rospy.init_node('tl_detector', log_level=rospy.DEBUG)
 
         self.pose = None
         self.waypoints = None
@@ -48,6 +49,16 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.count = 0
+
+        dirs = ["red", "yellow", "green", "unknown", "none"]
+
+        for dir in dirs:
+            path = "./traffic_lights/" + dir
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+        rospy.logdebug("Writing images to %s", os.path.abspath("./traffic_lights"))
 
         rospy.spin()
 
@@ -90,7 +101,7 @@ class TLDetector(object):
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
-    def get_closest_waypoint(self, pose):
+    def get_closest_waypoint(self, pose, dist_threshold=None):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
@@ -100,8 +111,20 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        dl = lambda a, b: (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2
+        min_distance = None
+        index = 0
+        i = 0
+        for wp in self.waypoints.waypoints:
+            pos = wp.pose.pose.position
+            distance = dl(pos, pose.position)
+            if (min_distance == None or distance < min_distance):
+                min_distance = distance
+                index = i
+            i += 1
+        if dist_threshold is None or min_distance < dist_threshold:
+            return index
+        return -1
 
 
     def project_to_image_plane(self, point_in_world):
@@ -114,26 +137,33 @@ class TLDetector(object):
             x (int): x coordinate of target point in image
             y (int): y coordinate of target point in image
 
-        """
 
-        fx = self.config['camera_info']['focal_length_x']
-        fy = self.config['camera_info']['focal_length_y']
-        image_width = self.config['camera_info']['image_width']
-        image_height = self.config['camera_info']['image_height']
+        """
+        #TODO Use tranform and rotation to calculate 2D position of light in image
+        #
+        # fx = self.config['camera_info']['focal_length_x']
+        # fy = self.config['camera_info']['focal_length_y']
+        # image_width = self.config['camera_info']['image_width']
+        # image_height = self.config['camera_info']['image_height']
 
         # get transform between pose of camera and world frame
-        trans = None
-        try:
-            now = rospy.Time.now()
-            self.listener.waitForTransform("/base_link",
-                  "/world", now, rospy.Duration(1.0))
-            (trans, rot) = self.listener.lookupTransform("/base_link",
-                  "/world", now)
-
-        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-            rospy.logerr("Failed to find camera to map transform")
-
-        #TODO Use tranform and rotation to calculate 2D position of light in image
+        # trans = None
+        # try:
+        #     now = rospy.Time.now()
+        #     self.listener.waitForTransform("/base_link",
+        #           "/world", now, rospy.Duration(1.0))
+        #     (trans, rot) = self.listener.lookupTransform("/base_link",
+        #           "/world", now)
+        #
+        # except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+        #     rospy.logerr("Failed to find camera to map transform")
+        #
+        # mat = self.listener.fromTranslationRotation(trans,rot)
+        # v = np.array([point_in_world.x, point_in_world.y, point_in_world.z, 1])
+        # result = mat.dot(v)
+        #
+        # x = result[0]
+        # y = result[1]
 
         x = 0
         y = 0
@@ -173,19 +203,42 @@ class TLDetector(object):
 
         """
         light = None
-
-        # List of positions that correspond to the line to stop in front of for a given intersection
+        min_light = None
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
-            car_position = self.get_closest_waypoint(self.pose.pose)
+            car_waypoint = self.get_closest_waypoint(self.pose.pose)
 
-        #TODO find the closest visible traffic light (if one exists)
+        min_light_waypoint = -1
+        for traffic_light in self.lights:
+            light_pos = traffic_light.pose.pose
+            light_waypoint = self.get_closest_waypoint(light_pos)
+            if light_waypoint != -1 and light_waypoint > car_waypoint and \
+                    (min_light_waypoint == -1 or light_waypoint < min_light_waypoint):
+                min_light_waypoint = light_waypoint
+                min_light = traffic_light
 
+        if min_light_waypoint != -1 and ( min_light_waypoint -  car_waypoint < 250):
+            light = self.waypoints.waypoints[min_light_waypoint]
+
+        #rospy.logdebug("Car waypoint: %d, light waypoint: %d", car_waypoint, min_light_waypoint )
+
+        folder_map = {0: "red", 1: "yellow", 2: "green", 4: "unknown"}
         if light:
-            state = self.get_light_state(light)
-            return light_wp, state
-        self.waypoints = None
+            state = self.get_light_state(min_light)
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            folder = folder_map[min_light.state]
+            filename = "./traffic_lights/" + folder + "/image_" + str(self.count) + ".png"
+            self.count += 1
+            cv2.imwrite(filename, cv_image)
+            return min_light_waypoint, state
+
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        filename = "./traffic_lights/none/image_" + str(self.count) + ".png"
+        cv2.imwrite(filename, cv_image)
+
+        self.count += 1
         return -1, TrafficLight.UNKNOWN
+
 
 if __name__ == '__main__':
     try:
