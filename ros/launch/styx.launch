@@ -20,4 +20,7 @@
 
     <!--Traffic Light Locations and Camera Config -->
     <param name="traffic_light_config" textfile="$(find tl_detector)/sim_traffic_light_config.yaml" />
+
+    <param name="tl_classifier_model_path" value="$(find tl_detector)/light_classification/models/sim/optimized_inference_graph.pb" />
+
 </launch>
