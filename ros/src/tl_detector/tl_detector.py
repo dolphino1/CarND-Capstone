@@ -56,7 +56,6 @@ class TLDetector(object):
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint',
                                                       Int32, queue_size=1)
 
-
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -95,8 +94,10 @@ class TLDetector(object):
                 self.last_state = self.state
                 light_wp = light_wp if state == TrafficLight.RED else -1
                 self.last_wp = light_wp
+                rospy.logdebug(light_wp)
                 self.upcoming_red_light_pub.publish(Int32(light_wp))
             else:
+                rospy.logdebug(self.last_wp)
                 self.upcoming_red_light_pub.publish(Int32(self.last_wp))
             self.state_count += 1
 
@@ -147,6 +148,11 @@ class TLDetector(object):
         # Get classification
         return self.light_classifier.get_classification(cv_image)
 
+    def dl(pos_1, pos_2):
+        return ((pos_1.x - pos_2.x) ** 2
+                + (pos_1.y - pos_2.y) ** 2
+                + (pos_1.z - pos_2.z) ** 2)
+
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -160,7 +166,7 @@ class TLDetector(object):
         """
         light = None
         min_light = None
-        #stop_line_positions = self.config['stop_line_positions']
+
         if(self.pose):
             car_waypoint = self.get_closest_waypoint(self.pose.pose)
 
@@ -184,16 +190,59 @@ class TLDetector(object):
 
         if min_light_waypoint != -1 and within_range:
             light = self.waypoints.waypoints[min_light_waypoint]
+            min_light_waypoint = self.nearest_stop_position(light)
 
-        rospy.logdebug("Car waypoint: %d, light waypoint: %d",
-                       car_waypoint, min_light_waypoint)
+        # rospy.logdebug("Car waypoint: %d, light waypoint: %d",
+        #                car_waypoint, min_light_waypoint)
 
         if light:
             state = self.get_light_state(min_light)
+
             return min_light_waypoint, state
 
         self.count += 1
         return -1, TrafficLight.UNKNOWN
+
+    def nearest_stop_position(self, light):
+        """
+            Finds the nearest waypoint index for the stop position of a light
+
+            Args:
+                light: light object
+            Returns:
+                index: index of waypoint (int)
+
+        """
+        stop_line_positions = self.config['stop_line_positions']
+        light_pos = light.pose.pose.position
+
+        x1 = light_pos.x
+        y1 = light_pos.y
+
+        dl = lambda x2, y2: (x1 - x2) ** 2 + (y1 - y2) ** 2
+
+        distances = []
+        for stop in stop_line_positions:
+            distances.append(dl(stop[0], stop[1]))
+
+        closest_stop_index = distances.index(min(distances))
+        closest_stop = stop_line_positions[closest_stop_index]
+        x1 = closest_stop[0]
+        y1 = closest_stop[1]
+
+        dl = lambda pos: (x1 - pos.x) ** 2 + (y1 - pos.y) ** 2
+
+        min_distance = None
+        index = 0
+        i = 0
+        for wp in self.waypoints.waypoints:
+            pos = wp.pose.pose.position
+            distance = dl(pos)
+            if (min_distance is None or distance < min_distance):
+                min_distance = distance
+                index = i
+            i += 1
+        return index 
 
 
 if __name__ == '__main__':
