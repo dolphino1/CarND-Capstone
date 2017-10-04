@@ -12,7 +12,7 @@ import tf
 import cv2
 import yaml
 
-STATE_COUNT_THRESHOLD = 3
+STATE_COUNT_THRESHOLD = 2
 MIN_N_WP_DETECTION_THRESH = 250
 
 
@@ -59,12 +59,15 @@ class TLDetector(object):
         rospy.spin()
 
     def pose_cb(self, msg):
+        # Position callback
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
+        # Waypoints callback
         self.waypoints = waypoints
 
     def traffic_cb(self, msg):
+        # Traffic light callback
         self.lights = msg.lights
 
     def image_cb(self, msg):
@@ -94,10 +97,10 @@ class TLDetector(object):
                 self.last_state = self.state
                 light_wp = light_wp if state == TrafficLight.RED else -1
                 self.last_wp = light_wp
-                rospy.logdebug(light_wp)
+                # rospy.logdebug(light_wp)
                 self.upcoming_red_light_pub.publish(Int32(light_wp))
             else:
-                rospy.logdebug(self.last_wp)
+                # rospy.logdebug(self.last_wp)
                 self.upcoming_red_light_pub.publish(Int32(self.last_wp))
             self.state_count += 1
 
@@ -207,12 +210,17 @@ class TLDetector(object):
         """
             Finds the nearest waypoint index for the stop position of a light
 
+            1. Find the closest stop line position to the light
+            2. Use stop position to find closest waypoint index
+
             Args:
                 light: light object
             Returns:
                 index: index of waypoint (int)
 
         """
+
+        # Find the closest stop line position to the light
         stop_line_positions = self.config['stop_line_positions']
         light_pos = light.pose.pose.position
 
@@ -230,6 +238,7 @@ class TLDetector(object):
         x1 = closest_stop[0]
         y1 = closest_stop[1]
 
+        # Use stop position to find closest waypoint index
         dl = lambda pos: (x1 - pos.x) ** 2 + (y1 - pos.y) ** 2
 
         min_distance = None
@@ -242,7 +251,7 @@ class TLDetector(object):
                 min_distance = distance
                 index = i
             i += 1
-        return index 
+        return index
 
 
 if __name__ == '__main__':
