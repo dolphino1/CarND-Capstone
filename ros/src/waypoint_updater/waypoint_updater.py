@@ -58,6 +58,14 @@ class WaypointUpdater(object):
                 + (pos_1.z - pos_2.z) ** 2) ** 0.5
 
     def update(self, traffic_waypoint_index):
+        """
+            Publish final waypoints based on status of the traffic waypoint
+                index.
+
+            Args:
+                traffic_waypoint_index: int index of waypoint nearest to stop
+                    line position if light is red else -1
+        """
         if not (self.base_waypoints is None or
            self.current_velocity is None or
            self.current_pose is None):
@@ -113,6 +121,18 @@ class WaypointUpdater(object):
         self.final_waypoints_pub.publish(lane_msg)
 
     def decelerate_to_index(self, waypoints, redlight_index):
+        """
+            Changes way point speeds to smoothly come to a stop at the 
+            way point of the redlight index.
+
+            Args:
+                waypoints: list of waypoints
+                redlight_index: int of index of waypoint to stop at
+
+            Returns:
+                waypoints: list of waypoints with smoothly decelerating
+                speeds.
+        """
 
         if len(waypoints) < 1:
             return []
