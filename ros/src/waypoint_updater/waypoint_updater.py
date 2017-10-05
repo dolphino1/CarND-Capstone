@@ -4,6 +4,7 @@ import rospy
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
+import copy
 
 import math
 
@@ -25,9 +26,7 @@ TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 50  # Number of waypoints we will publish.
-TARGET_SPEED_MPH = 20
-TARGET_SPEED_MPS = (TARGET_SPEED_MPH * 1604.04) / (60 * 60)
+LOOKAHEAD_WPS = 100  # Number of waypoints we will publish.
 BUFFER = 5
 
 class WaypointUpdater(object):
@@ -38,18 +37,17 @@ class WaypointUpdater(object):
         rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         # rospy.Subscriber('/obstacle_waypoint', int, self.obstacle_cb)
 
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints',
-                                                   Lane, queue_size=1)
+        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.base_waypoints = None
         self.current_velocity = None
         self.current_pose = None
+        self.traffic_waypoint = -1
 
-        rospy.spin()
+        self.loop()
 
     @staticmethod
     def dist(pos_1, pos_2):
@@ -57,18 +55,11 @@ class WaypointUpdater(object):
                 + (pos_1.y - pos_2.y) ** 2
                 + (pos_1.z - pos_2.z) ** 2) ** 0.5
 
-    def update(self, traffic_waypoint_index):
-        """
-            Publish final waypoints based on status of the traffic waypoint
-                index.
-
-            Args:
-                traffic_waypoint_index: int index of waypoint nearest to stop
-                    line position if light is red else -1
-        """
-        if not (self.base_waypoints is None or
-           self.current_velocity is None or
-           self.current_pose is None):
+    def loop(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if ( (self.base_waypoints is None) or (self.current_velocity is None) or (self.current_pose is None)):
+                continue
 
             pos = self.current_pose.pose.position
 
@@ -78,47 +69,25 @@ class WaypointUpdater(object):
             for bp in self.base_waypoints.waypoints:
                 bpos = bp.pose.pose.position
                 if bpos.x > pos.x:
-                    bp.twist.twist.linear.x = TARGET_SPEED_MPS
                     distance = self.dist(pos, bpos)
-                    if (min_distance is None or distance < min_distance):
+                    if (min_distance == None or distance < min_distance):
                         min_distance = distance
                         lower_bound = i
                 i += 1
 
-            upper_bound = min(len(self.base_waypoints.waypoints),
-                              lower_bound + LOOKAHEAD_WPS)
-            lane_waypoints = self.base_waypoints.waypoints
+            upper_bound = min(len(self.base_waypoints.waypoints), lower_bound + LOOKAHEAD_WPS)
+            lane_waypoints = copy.deepcopy(self.base_waypoints.waypoints[lower_bound:upper_bound])
 
-            traffic_waypoint_index = int(traffic_waypoint_index.data)
-
-            if (traffic_waypoint_index != -1):
-                lane_waypoints = self.decelerate_to_index(
-                    lane_waypoints, traffic_waypoint_index)
-
-            lane_waypoints = lane_waypoints[lower_bound:upper_bound]
+            if (self.traffic_waypoint != -1 and lower_bound <= self.traffic_waypoint < upper_bound):
+                relative_traffic_waypoint = self.traffic_waypoint - lower_bound
+                lane_waypoints = self.decelerate_to_index(lane_waypoints, relative_traffic_waypoint)
 
             lane_msg = Lane()
             lane_msg.waypoints = lane_waypoints
 
+            self.final_waypoints_pub.publish(lane_msg)
 
-        # rospy.logdebug(
-        #     "CAR CURRENT pos: (%f, %f, %f), orient: (%f, %f, %f, %f)",
-        #     self.current_pose.pose.position.x, self.current_pose.pose.position.y, self.current_pose.pose.position.z,
-        #     self.current_pose.pose.orientation.x, self.current_pose.pose.orientation.y,
-        #     self.current_pose.pose.orientation.z, self.current_pose.pose.orientation.w)
-        #
-        # rospy.logdebug("Lane Waypoints:")
-        # count = 0
-        # for wp in lane_waypoints:
-        #     rospy.logdebug("%d) pos: (%f, %f, %f), orient: (%f, %f, %f, %f), linear: (%f, %f, %f), angular: (%f, %f, %f)",
-        #                    count, wp.pose.pose.position.x, wp.pose.pose.position.y, wp.pose.pose.position.z,
-        #                    wp.pose.pose.orientation.x, wp.pose.pose.orientation.y, wp.pose.pose.orientation.z,
-        #                    wp.pose.pose.orientation.w,
-        #                    wp.twist.twist.linear.x, wp.twist.twist.linear.y, wp.twist.twist.linear.z,
-        #                    wp.twist.twist.angular.x, wp.twist.twist.angular.y, wp.twist.twist.angular.z)
-        #     count += 1
-
-        self.final_waypoints_pub.publish(lane_msg)
+            rate.sleep()
 
     def decelerate_to_index(self, waypoints, redlight_index):
         """
@@ -162,12 +131,10 @@ class WaypointUpdater(object):
     def velocity_cb(self, velocity):
         self.current_velocity = velocity
 
-    def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        self.update(msg)
+    def traffic_cb(self, traffic_waypoint):
+        self.traffic_waypoint = traffic_waypoint.data
 
     def obstacle_cb(self, msg):
-        # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
 
     def get_waypoint_velocity(self, waypoint):
