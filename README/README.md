@@ -229,6 +229,14 @@ traffic light. In additional the perception component detects obstacles.
         return -1, TrafficLight.UNKNOWN
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Images below shows traffic light classification results. Mostly the perception module detected trafficsign and cllassify correctly but classified yellow light as red light in some frames.
+
+![](figure_1.png)
+![](figure_1-1.png)
+![](figure_1-2.png)
+![](figure_1-3.png)
+![](figure_1-5.png)
+![](figure_1-6.png)
  
 
 ### Planning
@@ -281,7 +289,7 @@ and traffic lights.
 ![](Control.PNG)
 
 The control component is responsible to read the input and send commands to
-navigate the vehicle.
+navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target linear velocity and target angular velocity published by Waypoint Uploader Node. 
 
  
 
@@ -296,7 +304,6 @@ navigate the vehicle.
 
         -   /vehicle/dbw_enabled
 
-         
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
@@ -336,7 +343,7 @@ navigate the vehicle.
  
 
 -   *loop *- Get the throttle, brake and steer information from the object
-    controller and publish the information*.*
+    controller and publish the information when dbw_enabled is on*.* To get the vehicle control value, class "Controller" is called and this class is defined in "twist_comntroller.py".  
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def loop(self):
@@ -358,22 +365,68 @@ navigate the vehicle.
             rate.sleep()
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
- 
+**twist_controller.py**
+
+-   *\__init_\_  *- Defines parameters for PID controller, YawController and LowPassFilter wihch will be used in controller section below. Parameters were tuned based on the Simulation result.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __init__(self,
+                 wheel_base,
+                 steer_ratio,
+                 min_speed,
+                 max_lat_accel,
+                 max_steer_angle):
+        self._throttle_break_pid = PID(2, 0, 0.5, -1, 1)
+        self._steering_pid = PID(0.5, 0, 1.0, -8.2, 8.2)
+        self._yaw_controller = YawController(wheel_base,
+                                             steer_ratio,
+                                             min_speed,
+                                             max_lat_accel,
+                                             max_steer_angle)
+
+        self._throttle_break_filter = LowPassFilter(0.2, 0.1)
+        self._steering_filter = LowPassFilter(0.2, 0.1)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-   *control *- To calculate throttle and brake control value, PID controller was used. PID controller calculate and output "throttle_break" to keep target linear speed , then this control value was filtered. Depending on the control value, either control value was used to calculate "throttle" or "brake value".
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def control(self, twist, current_velocity, dt):
+        current_speed_ms = current_velocity.twist.linear.x
+        target_speed_ms = twist.twist.linear.x
+        target_angular_speed = twist.twist.angular.z
+
+        rospy.logdebug("target_speed_ms: %f current_speed_ms: %f target_angular_speed: %f",
+                       target_speed_ms, current_speed_ms, target_angular_speed)
+
+        steer = self._yaw_controller.get_steering(target_speed_ms,
+                                                  target_angular_speed,
+                                                  current_speed_ms)
+        steer = self._steering_filter.filt(steer)
+
+        throttle_break = self._throttle_break_pid.step(target_speed_ms - current_speed_ms, dt)
+        throttle_break = self._throttle_break_filter.filt(throttle_break)
+        throttle = throttle_break * 1 if throttle_break > 0.1 else 0.
+        break_value = (-3250.0 * throttle_break) if throttle_break < -0.1 else 0
+        return throttle, break_value, steer
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Team
 ----
 
-**Team 0**	
+**Team name : Team 0**	
 
 -   **Guilherme Schlinker**	(team leader)
-
+e-mail:guilhermess@gmail.com
 -   **Zhao Lang**
-
+e-mail:eltoshan@gmail.com
 -   **Oisin Dolphin**
-
+e-mail:dolphino@tcd.ie
 -   **Jin Kurumisawa**
-
+e-mail:kurumi722@gmail.com
 -   **Fabio Takemura**
+e-mail:fabio.takemura@gmail.com
 
  
 -
