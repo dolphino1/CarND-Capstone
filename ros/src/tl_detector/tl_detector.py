@@ -18,7 +18,7 @@ MIN_N_WP_DETECTION_THRESH = 250
 
 class TLDetector(object):
     def __init__(self):
-        rospy.init_node('tl_detector', log_level=rospy.DEBUG)
+        rospy.init_node('tl_detector')
 
         self.pose = None
         self.waypoints = None
@@ -95,12 +95,16 @@ class TLDetector(object):
                 self.state = state
             elif self.state_count >= STATE_COUNT_THRESHOLD:
                 self.last_state = self.state
-                light_wp = light_wp if state == TrafficLight.RED else -1
+
+                car_waypoint = self.get_closest_waypoint(self.pose.pose)
+                if ( state == TrafficLight.RED or
+                    ( state == TrafficLight.YELLOW and (light_wp - car_waypoint > 15))):
+                    light_wp = light_wp
+                else:
+                    light_wp = -1
                 self.last_wp = light_wp
-                # rospy.logdebug(light_wp)
                 self.upcoming_red_light_pub.publish(Int32(light_wp))
             else:
-                # rospy.logdebug(self.last_wp)
                 self.upcoming_red_light_pub.publish(Int32(self.last_wp))
             self.state_count += 1
 
@@ -170,8 +174,10 @@ class TLDetector(object):
         light = None
         min_light = None
 
-        if(self.pose):
-            car_waypoint = self.get_closest_waypoint(self.pose.pose)
+        if(not self.pose):
+            return
+
+        car_waypoint = self.get_closest_waypoint(self.pose.pose)
 
         min_light_waypoint = -1
 
@@ -195,12 +201,8 @@ class TLDetector(object):
             light = self.waypoints.waypoints[min_light_waypoint]
             min_light_waypoint = self.nearest_stop_position(light)
 
-        # rospy.logdebug("Car waypoint: %d, light waypoint: %d",
-        #                car_waypoint, min_light_waypoint)
-
         if light:
             state = self.get_light_state(min_light)
-
             return min_light_waypoint, state
 
         self.count += 1
