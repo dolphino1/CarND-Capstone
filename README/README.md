@@ -148,19 +148,35 @@ created or modified by the team.
 ![](Perception.PNG)
 
 The perception component detect traffics lights and classify the detected
-traffic light. In additional the perception component detects obstacles.
+traffic light. In additional the perception component detects obstacles. The
+following steps are the main steps implemented to detect and classify traffic
+lights:
 
-Traffic light detection and classification was done performed in one model using
-the Faster R-CNN with Resnet-101 architecture from the [Tensorflow Object
-Detection
-API](https://github.com/tensorflow/models/tree/master/research/object_detection).
+1.  Read the input image: car camera image, traffic lights locations, car
+    location
 
-Due to the small quantity of training data available, we leveraged double
-transfer learning. Starting with the weights pre-trained on the COCO dataset,
-the first pass of the model was fine-tuned on the [Bosch Small Traffic Lights
-Dataset](https://hci.iwr.uni-heidelberg.de/node/6132). We then trained two
-separate detectors in the second stage, one for the simulator and one for the
-test site.
+2.  Transform traffic lights waypoints to to the vehicle's coordinate system.
+
+3.  Select the nearest traffic lights which is ahead of the car and the light is
+    on. In this step the car location is used to verify if the traffic is ahead
+    of the car and the distance to the traffic light. Validate if the traffic
+    lights distance is within a certain range, otherwise the traffic light is
+    ignored.
+
+4.  Classify the light color of the traffic light. The classification was done
+    performed in one model using the Faster R-CNN with Resnet-101 architecture
+    from the [Tensorflow Object Detection
+    API](https://github.com/tensorflow/models/tree/master/research/object_detection).
+
+    Due to the small quantity of training data available, we leveraged double
+    transfer learning. Starting with the weights pre-trained on the COCO
+    dataset, the first pass of the model was fine-tuned on the [Bosch Small
+    Traffic Lights Dataset](https://hci.iwr.uni-heidelberg.de/node/6132). We
+    then trained two separate detectors in the second stage, one for the
+    simulator and one for the test site.
+
+5.  Publish red traffic light. The yellow and green traffic lights are relevant
+    for the solution because theses columns does not affect the car behavior.
 
  
 
@@ -173,7 +189,7 @@ test site.
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def get_closest_waypoint(self, pose, dist_threshold=None):
         dl = lambda a, b: (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2
-        min_distance = None
+        min_distance = Nonea
         index = 0
         i = 0
         for wp in self.waypoints.waypoints:
@@ -241,6 +257,8 @@ test site.
         return -1, TrafficLight.UNKNOWN
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+ 
+
 Images below shows traffic light classification results. Mostly the perception
 module detected trafficsign and cllassify correctly but classified yellow light
 as red light in some frames.
@@ -248,6 +266,10 @@ as red light in some frames.
 ![](figure_1.png)
 
 ![](figure_1-1.png)
+
+ 
+
+ 
 
 ![](figure_1-2.png)
 
@@ -262,7 +284,8 @@ as red light in some frames.
 ![](Planning.PNG)
 
 The planning component control the acceleration based on a presence of obstacles
-and traffic lights.
+and traffic lights. The following steps are the main steps implemented on
+planning components:
 
  
 
@@ -433,17 +456,15 @@ linear velocity and target angular velocity published by Waypoint Uploader Node.
 Team
 ----
 
-**Team name : Team 0**
+**Team name : **Team 0
 
--   **Guilherme Schlinker** (team leader) e-mail:guilhermess\@gmail.com
-
--   **Zhao Lang** e-mail:eltoshan\@gmail.com
-
--   **Oisin Dolphin** e-mail:dolphino\@tcd.ie
-
--   **Jin Kurumisawa** e-mail:kurumi722\@gmail.com
-
--   **Fabio Takemura** e-mail:fabio.takemura\@gmail.com
+| **Name**                          | **e-mail**                |
+|-----------------------------------|---------------------------|
+| Guilherme Schlinker (team leader) | guilhermess\@gmail.com    |
+| Zhao Lang                         | eltoshan\@gmail.com       |
+| Oisin Dolphin                     | dolphino\@tcd.ie          |
+| Jin Kurumisawa                    | kurumi722\@gmail.com      |
+| Fabio Takemura                    | fabio.takemura\@gmail.com |
 
  
 -
