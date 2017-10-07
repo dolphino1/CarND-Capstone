@@ -150,11 +150,23 @@ created or modified by the team.
 The perception component detect traffics lights and classify the detected
 traffic light. In additional the perception component detects obstacles.
 
+Traffic light detection and classification was done performed in one model using
+the Faster R-CNN with Resnet-101 architecture from the [Tensorflow Object
+Detection
+API](https://github.com/tensorflow/models/tree/master/research/object_detection).
+
+Due to the small quantity of training data available, we leveraged double
+transfer learning. Starting with the weights pre-trained on the COCO dataset,
+the first pass of the model was fine-tuned on the [Bosch Small Traffic Lights
+Dataset](https://hci.iwr.uni-heidelberg.de/node/6132). We then trained two
+separate detectors in the second stage, one for the simulator and one for the
+test site.
+
  
 
 **tl_detector.py**
 
--   *get_closest_waypoint *- This function calculates the distance of each
+-   *get_closest_waypoint* - This function calculates the distance of each
     waypoint to the given position and return the waypoint closes to the
     position.
 
@@ -178,8 +190,8 @@ traffic light. In additional the perception component detects obstacles.
 
  
 
--   *get_light_state *- Classify the traffic light using the opencv library to
-    manipulate the image and the *light_classification.tl_classifier *classify
+-   *get_light_state* - Classify the traffic light using the opencv library to
+    manipulate the image and the *light_classification.tl_classifier* classify
     the traffic light.
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -229,15 +241,21 @@ traffic light. In additional the perception component detects obstacles.
         return -1, TrafficLight.UNKNOWN
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Images below shows traffic light classification results. Mostly the perception module detected trafficsign and cllassify correctly but classified yellow light as red light in some frames.
+Images below shows traffic light classification results. Mostly the perception
+module detected trafficsign and cllassify correctly but classified yellow light
+as red light in some frames.
 
 ![](figure_1.png)
+
 ![](figure_1-1.png)
+
 ![](figure_1-2.png)
+
 ![](figure_1-3.png)
+
 ![](figure_1-5.png)
+
 ![](figure_1-6.png)
- 
 
 ### Planning
 
@@ -250,7 +268,7 @@ and traffic lights.
 
 **waypoint_updater.py**
 
--   *pose_cb *- Set method for pose attribute*.*
+-   *pose_cb* - Set method for pose attribute*.*
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def pose_cb(self, msg):
@@ -268,18 +286,11 @@ and traffic lights.
 
  
 
--   *traffic_cb* - ???*.*
+-   *traffic_cb* - Set method for traffic waypoint attribute*.*
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ??? 
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-     
-
-    -   *obstacle_cb* - ???*.*
-
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ???
+    def traffic_cb(self, traffic_waypoint):
+        self.traffic_waypoint = traffic_waypoint.data 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
  
@@ -289,13 +300,14 @@ and traffic lights.
 ![](Control.PNG)
 
 The control component is responsible to read the input and send commands to
-navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target linear velocity and target angular velocity published by Waypoint Uploader Node. 
+navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
+linear velocity and target angular velocity published by Waypoint Uploader Node.
 
  
 
 **dbw_node.py**
 
--   *\__init_\_ *- Included the topics subscriptions and created the controller
+-   *\_init\_* - Included the topics subscriptions and created the controller
     object:
 
     -   /twist_cmd
@@ -303,7 +315,6 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
         -   /current_velocity
 
         -   /vehicle/dbw_enabled
-
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
@@ -342,8 +353,10 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
 
  
 
--   *loop *- Get the throttle, brake and steer information from the object
-    controller and publish the information when dbw_enabled is on*.* To get the vehicle control value, class "Controller" is called and this class is defined in "twist_comntroller.py".  
+-   *loop* - Get the throttle, brake and steer information from the object
+    controller and publish the information when dbw_enabled is on*.* To get the
+    vehicle control value, class "Controller" is called and this class is
+    defined in "twist_comntroller.py".
 
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def loop(self):
@@ -359,7 +372,7 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
                 throttle, brake, steer = self.controller.control(self.twist,
                     self.current_velocity,
                     dt)
-                
+
                 rospy.logdebug('publish steer: %f brake: %f throttle: %f', steer, brake, throttle)
                 self.publish(throttle, brake, steer)
             rate.sleep()
@@ -367,9 +380,11 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
 
 **twist_controller.py**
 
--   *\__init_\_  *- Defines parameters for PID controller, YawController and LowPassFilter wihch will be used in controller section below. Parameters were tuned based on the Simulation result.
+-   *\_init\_* - Defines parameters for PID controller, YawController and
+    LowPassFilter wihch will be used in controller section below. Parameters
+    were tuned based on the Simulation result.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self,
                  wheel_base,
                  steer_ratio,
@@ -386,11 +401,15 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
 
         self._throttle_break_filter = LowPassFilter(0.2, 0.1)
         self._steering_filter = LowPassFilter(0.2, 0.1)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
--   *control *- To calculate throttle and brake control value, PID controller was used. PID controller calculate and output "throttle_break" to keep target linear speed , then this control value was filtered. Depending on the control value, either control value was used to calculate "throttle" or "brake value".
+-   *control* - To calculate throttle and brake control value, PID controller
+    was used. PID controller calculate and output "throttle_break" to keep
+    target linear speed , then this control value was filtered. Depending on the
+    control value, either control value was used to calculate "throttle" or
+    "brake value".
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def control(self, twist, current_velocity, dt):
         current_speed_ms = current_velocity.twist.linear.x
         target_speed_ms = twist.twist.linear.x
@@ -409,24 +428,22 @@ navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
         throttle = throttle_break * 1 if throttle_break > 0.1 else 0.
         break_value = (-3250.0 * throttle_break) if throttle_break < -0.1 else 0
         return throttle, break_value, steer
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Team
 ----
 
-**Team name : Team 0**	
+**Team name : Team 0**
 
--   **Guilherme Schlinker**	(team leader)
-e-mail:guilhermess@gmail.com
--   **Zhao Lang**
-e-mail:eltoshan@gmail.com
--   **Oisin Dolphin**
-e-mail:dolphino@tcd.ie
--   **Jin Kurumisawa**
-e-mail:kurumi722@gmail.com
--   **Fabio Takemura**
-e-mail:fabio.takemura@gmail.com
+-   **Guilherme Schlinker** (team leader) e-mail:guilhermess\@gmail.com
+
+-   **Zhao Lang** e-mail:eltoshan\@gmail.com
+
+-   **Oisin Dolphin** e-mail:dolphino\@tcd.ie
+
+-   **Jin Kurumisawa** e-mail:kurumi722\@gmail.com
+
+-   **Fabio Takemura** e-mail:fabio.takemura\@gmail.com
 
  
 -
