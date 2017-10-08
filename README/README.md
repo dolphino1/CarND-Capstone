@@ -152,8 +152,7 @@ traffic light. In additional the perception component detects obstacles. The
 following steps are the main steps implemented to detect and classify traffic
 lights:
 
-1.  Read the input image: car camera image, traffic lights locations, car
-    location
+1.  Read the car camera image, traffic lights locations, car location
 
 2.  Transform traffic lights waypoints to to the vehicle's coordinate system.
 
@@ -287,9 +286,60 @@ The planning component control the acceleration based on a presence of obstacles
 and traffic lights. The following steps are the main steps implemented on
 planning components:
 
+1.  Read the base waypoints, car location, car velocity and traffic waypoints.
+
+2.  Check if there is obstacle in the same lane ahead of the vehicle
+
+3.  If there is a red traffic light, the target car velocity is set to 0, for
+    other obstacles the target velocity is calculated based on the distance. In
+    case of very short distance, the target velocity is set to 0.
+
+4.  Publish the updated way points and target velocities
+
  
 
 **waypoint_updater.py**
+
+-   *loop *- update the waypoints based on presence of obstacles ahead of the
+    vehicle
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def loop(self):
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        if ( (self.base_waypoints is None) or (self.current_velocity is None) or (self.current_pose is None)):
+            continue
+
+        pos = self.current_pose.pose.position
+
+        min_distance = None
+        lower_bound = 0
+        i = 0
+        for bp in self.base_waypoints.waypoints:
+            bpos = bp.pose.pose.position
+            if bpos.x > pos.x:
+                distance = self.dist(pos, bpos)
+                if (min_distance == None or distance < min_distance):
+                    min_distance = distance
+                    lower_bound = i
+            i += 1
+
+        upper_bound = min(len(self.base_waypoints.waypoints), lower_bound + LOOKAHEAD_WPS)
+        lane_waypoints = copy.deepcopy(self.base_waypoints.waypoints[lower_bound:upper_bound])
+
+        if (self.traffic_waypoint != -1 and lower_bound <= self.traffic_waypoint < upper_bound):
+            relative_traffic_waypoint = self.traffic_waypoint - lower_bound
+            lane_waypoints = self.decelerate_to_index(lane_waypoints, relative_traffic_waypoint)
+
+        lane_msg = Lane()
+        lane_msg.waypoints = lane_waypoints
+
+        self.final_waypoints_pub.publish(lane_msg)
+
+        rate.sleep()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ 
 
 -   *pose_cb* - Set method for pose attribute*.*
 
@@ -322,9 +372,31 @@ planning components:
 
 ![](Control.PNG)
 
-The control component is responsible to read the input and send commands to
-navigate the vehicle. This DBW Node subscribe "/twist_cmd" which includes target
-linear velocity and target angular velocity published by Waypoint Uploader Node.
+The control component is responsible to read the control target input and send
+vehicle actuation commands to navigate the vehicle.
+
+The DBW Node subscribe "/twist_cmd" which includes target linear velocity and
+target angular velocity published by Waypoint Follower Node. Waypoint Follower
+Node calculates and publishes target linear velocity and target angular velocity
+based on the "/final_waypoints" published by Waypoint Updater Node.
+"/final_waypoints" is a list of waypoints ahead with target velocity from
+Waypoint Updater Node. Target speed is adjusted if the perception module
+detected red traffic light ahead.
+
+The following steps are the main steps implemented on planning components:
+
+1.  Read current car velocity, car location, target vehicle linear and angular
+    velocities and indication if the car is under dbw or driver control.
+
+2.  Calculate the throttle, brake and steer values using the following PID
+    parameters:
+
+| **Control**      | **Kp** | **Ki** | **Kd** |
+|------------------|--------|--------|--------|
+| throttle, brake  | 2      | 0      | 0.5    |
+| steer            | 0.5    | 0      | 1      |
+
+3.  Publish the new throttle, brake and steer values.
 
  
 
