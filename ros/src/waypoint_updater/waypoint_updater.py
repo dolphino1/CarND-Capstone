@@ -27,7 +27,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 100  # Number of waypoints we will publish.
-BUFFER = 5
+BUFFER = 1
 
 class WaypointUpdater(object):
     def __init__(self):
