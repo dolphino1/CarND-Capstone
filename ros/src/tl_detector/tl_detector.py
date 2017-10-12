@@ -175,7 +175,7 @@ class TLDetector(object):
         min_light = None
 
         if(not self.pose):
-            return
+            return -2, TrafficLight.UNKNOWN
 
         car_waypoint = self.get_closest_waypoint(self.pose.pose)
 

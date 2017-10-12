@@ -45,7 +45,7 @@ class WaypointUpdater(object):
         self.base_waypoints = None
         self.current_velocity = None
         self.current_pose = None
-        self.traffic_waypoint = -1
+        self.traffic_waypoint = -2
 
         self.loop()
 
@@ -58,7 +58,8 @@ class WaypointUpdater(object):
     def loop(self):
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            if ( (self.base_waypoints is None) or (self.current_velocity is None) or (self.current_pose is None)):
+            if ( (self.base_waypoints is None) or (self.current_velocity is None) or (self.current_pose is None) or
+                     (self.traffic_waypoint == -2 ) ):
                 continue
 
             pos = self.current_pose.pose.position
